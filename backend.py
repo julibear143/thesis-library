@@ -1,7 +1,5 @@
 from flask import Flask, render_template, request, jsonify, session, g, redirect
 from datetime import datetime, timedelta
-from gevent import monkey
-monkey.patch_all()  # Must be at VERY TOP of file (before other imports)
 import mysql.connector
 import hashlib
 import os
@@ -10,38 +8,21 @@ import serial
 import time
 
 app = Flask(__name__, template_folder=os.path.join("web_portal", "templates"))
-app.secret_key = os.environ.get('SECRET_KEY')  # New secure version
+app.secret_key = "your-strong-secret-key"
 
 
 
-def get_db_config():
-    if os.environ.get('RENDER'):
-        # Render PostgreSQL configuration
-        return {
-            "host": os.environ.get('PGHOST'),
-            "user": os.environ.get('PGUSER'),
-            "password": os.environ.get('PGPASSWORD'),
-            "database": os.environ.get('PGDATABASE'),
-            "port": os.environ.get('PGPORT', 5432)
-        }
-    else:
-        # Local MySQL configuration
-        return {
-            "host": "localhost",
-            "user": "root",
-            "password": "$Hevery143",
-            "database": "julibeardb"
-        }
+
+DB_CONFIG = {
+    "host": "localhost",
+    "user": "root",
+    "password": "$Hevery143",
+    "database": "julibeardb"
+}
 
 def get_db():
     if "db" not in g:
-        config = get_db_config()
-        if os.environ.get('RENDER'):
-            # PostgreSQL connection
-            g.db = psycopg2.connect(**config)
-        else:
-            # MySQL connection
-            g.db = mysql.connector.connect(**config)
+        g.db = mysql.connector.connect(**DB_CONFIG)
         g.cursor = g.db.cursor(dictionary=True)
     return g.db, g.cursor
 
@@ -51,13 +32,9 @@ def close_db(exception):
     if db is not None:
         db.close()
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "LIBRARY-KIOSK is working! 🎉", 200
-
-@app.route('/test')
-def test():
-    return jsonify({"status": "ok", "region": "Singapore"})
+    return render_template("index.html")
 
 
 ARDUINO_PORT = 'COM5'  # Your Arduino is on COM5
@@ -1056,17 +1033,16 @@ def reserve_book():
         cursor.close()
 
 
-@app.route('/get_user_reservations', methods=['GET'])
+@app.route('/get_user_reservations')
 def get_user_reservations():
     school_id = request.args.get('school_id')
     if not school_id:
-        return jsonify({"message": "School ID is required"}), 400
+        return jsonify({"message": "School ID required"}), 400
 
     db, cursor = get_db()
     try:
         cursor.execute("""
-            SELECT r.id, b.title, b.author, r.status, r.reservation_date,
-                   b.status as book_status
+            SELECT r.id, b.title, b.author, r.status, r.reservation_date, b.id as book_id
             FROM reservations r
             JOIN books b ON r.book_id = b.id
             JOIN users u ON r.user_id = u.id
@@ -1074,18 +1050,11 @@ def get_user_reservations():
             ORDER BY r.reservation_date DESC
         """, (school_id,))
         reservations = cursor.fetchall()
-
-        # Convert datetime to string for JSON
-        for res in reservations:
-            if isinstance(res['reservation_date'], datetime):
-                res['reservation_date'] = res['reservation_date'].strftime('%Y-%m-%d %H:%M:%S')
-
         return jsonify(reservations)
-    except mysql.connector.Error as err:
-        return jsonify({"message": str(err)}), 500
+    except Exception as e:
+        return jsonify({"message": str(e)}), 500
     finally:
         cursor.close()
-
 
 @app.route('/get_all_reservations', methods=['GET'])
 def get_all_reservations():
@@ -1108,8 +1077,9 @@ def get_all_reservations():
         """)
         reservations = cursor.fetchall()
 
-        # Convert datetime to string for JSON serialization
+        # Convert status to lowercase for consistency
         for res in reservations:
+            res['status'] = res['status'].lower() if res['status'] else 'pending'
             if isinstance(res['reservation_date'], datetime):
                 res['reservation_date'] = res['reservation_date'].isoformat()
 
@@ -1179,7 +1149,7 @@ def update_reservation_status():
     if not reservation_id or not status:
         return jsonify({"message": "Reservation ID and status are required"}), 400
 
-    if status not in ['Approved', 'Rejected']:
+    if status.lower() not in ['approved', 'rejected']:
         return jsonify({"message": "Invalid status"}), 400
 
     try:
@@ -1188,7 +1158,7 @@ def update_reservation_status():
             SELECT r.id, r.user_id, r.book_id, b.title, b.status as book_status
             FROM reservations r
             JOIN books b ON r.book_id = b.id
-            WHERE r.id = %s AND r.status = 'Pending'
+            WHERE r.id = %s AND r.status = 'pending'
         """, (reservation_id,))
         reservation = cursor.fetchone()
         if not reservation:
@@ -1203,14 +1173,14 @@ def update_reservation_status():
 
         # Create notification for user
         message = f"Your reservation for '{reservation['title']}' has been {status.lower()}. " + \
-                 ("Please visit the library front desk to borrow the book." if status == 'Approved' else "")
+                 ("Please visit the library front desk to borrow the book." if status.lower() == 'approved' else "")
         cursor.execute("""
             INSERT INTO notifications (user_id, message)
             VALUES (%s, %s)
         """, (reservation['user_id'], message))
 
         # If approved, update book status to Reserved
-        if status == 'Approved':
+        if status.lower() == 'approved':
             cursor.execute("""
                 UPDATE books 
                 SET status = 'Reserved' 
@@ -1425,6 +1395,165 @@ def remove_user():
         if 'cursor' in locals():
             cursor.close()
 
+
+@app.route('/borrow_reserved_book', methods=['POST'])
+def borrow_reserved_book():
+    try:
+        data = request.get_json()
+        book_id = data.get('book_id')
+        reservation_id = data.get('reservation_id')
+
+        # Verify the reservation exists and is approved
+        cursor.execute("""
+            SELECT r.id, r.user_id, r.book_id, b.title, b.book_type
+            FROM reservations r
+            JOIN books b ON r.book_id = b.id
+            WHERE r.id = %s AND r.status = 'Approved'
+        """, (reservation_id,))
+        reservation = cursor.fetchone()
+
+        if not reservation:
+            return jsonify({"success": False, "message": "No approved reservation found"}), 404
+
+        # Get user details
+        cursor.execute("SELECT id, role FROM users WHERE id = %s", (reservation['user_id'],))
+        user = cursor.fetchone()
+
+        # Calculate loan period
+        if user['role'] == 'Student':
+            loan_period = 1 if reservation['book_type'] == 'Reserve' else 7
+        elif user['role'] == 'Teacher':
+            loan_period = 152  # 5 months
+        else:
+            loan_period = 7  # Default
+
+        borrow_date = datetime.now()
+        due_date = borrow_date + timedelta(days=loan_period)
+
+        # Create borrowing record
+        cursor.execute("""
+            INSERT INTO borrowed_books 
+            (user_id, book_id, borrow_date, due_date, status) 
+            VALUES (%s, %s, %s, %s, 'borrowed')
+        """, (user['id'], book_id, borrow_date, due_date))
+
+        # Update book status
+        cursor.execute("""
+            UPDATE books SET status = 'Borrowed' WHERE id = %s
+        """, (book_id,))
+
+        # Update reservation status
+        cursor.execute("""
+            UPDATE reservations SET status = 'Completed' WHERE id = %s
+        """, (reservation_id,))
+
+        db.commit()
+
+        # Prepare receipt data
+        receipt_data = {
+            "book_title": reservation['title'],
+            "book_author": "Unknown",  # You should fetch this
+            "borrower_name": "User Name",  # Fetch this
+            "school_id": "12345",  # Fetch this
+            "borrow_date": borrow_date.strftime("%Y-%m-%d %H:%M"),
+            "due_date": due_date.strftime("%Y-%m-%d %H:%M"),
+            "book_type": reservation['book_type']
+        }
+
+        return jsonify({
+            "success": True,
+            "message": "Reserved book borrowed successfully",
+            "receipt_data": receipt_data
+        })
+
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route('/verify_reserved_book')
+def verify_reserved_book():
+    book_id = request.args.get('book_id')
+    barcode = request.args.get('barcode')
+
+    # Verify the barcode matches the book
+    db, cursor = get_db()
+    cursor.execute("SELECT barcode FROM books WHERE id = %s", (book_id,))
+    book = cursor.fetchone()
+
+    if not book:
+        return jsonify({"valid": False, "message": "Book not found"})
+
+    return jsonify({
+        "valid": book['barcode'] == barcode,
+        "book_title": book.get('title', '')
+    })
+
+
+@app.route('/complete_reserved_borrow', methods=['POST'])
+def complete_reserved_borrow():
+    data = request.json
+    book_id = data['book_id']
+    reservation_id = data['reservation_id']
+    barcode = data['barcode']
+
+    db, cursor = get_db()
+
+    try:
+        # 1. Verify reservation is still valid
+        cursor.execute("""
+            SELECT r.user_id, b.title, b.book_type
+            FROM reservations r
+            JOIN books b ON r.book_id = b.id
+            WHERE r.id = %s AND r.status = 'Approved'
+        """, (reservation_id,))
+        reservation = cursor.fetchone()
+
+        if not reservation:
+            return jsonify({"success": False, "message": "Reservation no longer valid"})
+
+        # 2. Create borrowing record (similar to regular borrowing)
+        borrow_date = datetime.now()
+        if reservation['book_type'] == 'Reserve':
+            due_date = borrow_date + timedelta(days=1)  # 1 day for reserve books
+        else:
+            due_date = borrow_date + timedelta(days=7)  # 1 week for regular books
+
+        cursor.execute("""
+            INSERT INTO borrowed_books 
+            (user_id, book_id, borrow_date, due_date, status) 
+            VALUES (%s, %s, %s, %s, 'borrowed')
+        """, (reservation['user_id'], book_id, borrow_date, due_date))
+
+        # 3. Update book status
+        cursor.execute("""
+            UPDATE books SET status = 'Checked Out' WHERE id = %s
+        """, (book_id,))
+
+        # 4. Update reservation status
+        cursor.execute("""
+            UPDATE reservations SET status = 'Completed' WHERE id = %s
+        """, (reservation_id,))
+
+        db.commit()
+
+        # 5. Prepare receipt data
+        receipt_data = {
+            "book_title": reservation['title'],
+            "borrow_date": borrow_date.strftime("%Y-%m-%d %H:%M"),
+            "due_date": due_date.strftime("%Y-%m-%d %H:%M"),
+            "book_type": reservation['book_type']
+        }
+
+        return jsonify({
+            "success": True,
+            "message": "Book borrowed successfully",
+            "receipt_data": receipt_data
+        })
+
+    except Exception as e:
+        db.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
 
 # Kiosk Part
 @app.route("/rfid_login", methods=["POST"])
@@ -1933,7 +2062,7 @@ def confirm_borrow():
         # 5. Update book status to Borrowed
         cursor.execute("""
             UPDATE books 
-            SET status = 'Borrowed' 
+            SET status = 'Checked Out' 
             WHERE id = %s
         """, (book_id,))
 

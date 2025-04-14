@@ -1785,29 +1785,41 @@ async function loadPenalties() {
                                 <th>Author</th>
                                 <th>Status</th>
                                 <th>Request Date</th>
+                                <th>Pickup Deadline</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            ${reservations.map(reservation => `
+                            ${reservations.map(reservation => {
+                                const pickupDeadline = reservation.pickup_expires_at ?
+                                    formatDateTime(new Date(reservation.pickup_expires_at)) :
+                                    'Not yet approved';
+
+                                return `
                                 <tr>
                                     <td>${reservation.title}</td>
                                     <td>${reservation.author}</td>
                                     <td>
                                         <span class="badge ${getReservationStatusClass(reservation.status)}">
-                                            ${reservation.status}
+                                            ${formatStatus(reservation.status)}
                                         </span>
                                     </td>
-                                    <td>${formatDate(reservation.reservation_date)}</td>
+                                    <td>${formatDateTime(new Date(reservation.reservation_date))}</td>
+                                    <td>${pickupDeadline}</td>
                                     <td>
-                                        ${reservation.status === 'Pending' ? `
+                                        ${reservation.status === 'pending' ? `
                                         <button class="btn btn-sm btn-danger" onclick="cancelReservation(${reservation.id})">
                                             <i class="fas fa-times"></i> Cancel
                                         </button>
                                         ` : ''}
+                                        ${reservation.status === 'approved' ? `
+                                        <span class="text-success">
+                                            <i class="fas fa-check-circle"></i> Ready for pickup
+                                        </span>
+                                        ` : ''}
                                     </td>
                                 </tr>
-                            `).join('')}
+                            `}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -1829,11 +1841,17 @@ async function loadPenalties() {
     }
 }
 
+function formatStatus(status) {
+    return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 function getReservationStatusClass(status) {
     switch(status) {
-        case 'Approved': return 'bg-success';
-        case 'Rejected': return 'bg-danger';
-        case 'Pending': return 'bg-warning';
+        case 'approved': return 'bg-success';
+        case 'rejected': return 'bg-danger';
+        case 'pending': return 'bg-warning';
+        case 'completed': return 'bg-primary';
+        case 'cancel': return 'bg-secondary';
         default: return 'bg-secondary';
     }
 }
@@ -1841,7 +1859,7 @@ function getReservationStatusClass(status) {
         // ====== ACTION FUNCTIONS ======
 
         // Reserve a book
-       async function reserveBook(bookId) {
+      async function reserveBook(bookId) {
     try {
         // Get school_id from sessionStorage
         let schoolId = sessionStorage.getItem('schoolId');
@@ -1872,12 +1890,46 @@ function getReservationStatusClass(status) {
             alert("Reservation request submitted! Please wait for admin approval.");
             // Optionally refresh the book details view
             viewBookDetails(bookId);
+
+            // Create and show a notification
+            createNotification(
+                schoolId,
+                "Reservation Request Submitted",
+                `Your reservation request for this book has been submitted and is pending approval.`,
+                "reservation"
+            );
         } else {
             throw new Error(result.message || "Failed to reserve book");
         }
     } catch (error) {
         console.error("Error:", error);
         alert("Error reserving book: " + error.message);
+    }
+}
+
+async function createNotification(userId, title, message, type) {
+    try {
+        const response = await fetch('/api/notifications', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                user_id: userId,
+                title: title,
+                message: message,
+                notification_type: type
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error("Failed to create notification");
+        }
+
+        // Refresh notification count
+        fetchUnreadCount();
+    } catch (error) {
+        console.error("Error creating notification:", error);
     }
 }
 
@@ -1891,7 +1943,10 @@ function getReservationStatusClass(status) {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ reservation_id: reservationId })
+            body: JSON.stringify({
+                reservation_id: reservationId,
+                school_id: sessionStorage.getItem('schoolId')
+            })
         });
 
         const result = await response.json();
@@ -1899,6 +1954,14 @@ function getReservationStatusClass(status) {
         if (response.ok) {
             alert(result.message);
             loadReservedBooks(); // Refresh the list
+
+            // Create a notification about the cancellation
+            createNotification(
+                sessionStorage.getItem('schoolId'),
+                "Reservation Cancelled",
+                "Your book reservation has been successfully cancelled.",
+                "reservation"
+            );
         } else {
             throw new Error(result.message || "Failed to cancel reservation");
         }
@@ -1906,6 +1969,57 @@ function getReservationStatusClass(status) {
         console.error("Error:", error);
         alert("Error canceling reservation: " + error.message);
     }
+}
+async function checkReservationStatusUpdates() {
+    try {
+        const schoolId = sessionStorage.getItem('schoolId');
+        if (!schoolId) return;
+
+        const response = await fetch(`/check_reservation_updates?school_id=${schoolId}`);
+        if (!response.ok) return;
+
+        const updates = await response.json();
+
+        if (updates.length > 0) {
+            updates.forEach(update => {
+                if (update.status === 'approved') {
+                    showReservationAlert(
+                        "Reservation Approved",
+                        `Your reservation for "${update.book_title}" is ready for pickup! Please collect it by ${formatDateTime(new Date(update.pickup_expires_at))}.`
+                    );
+                } else if (update.status === 'rejected') {
+                    showReservationAlert(
+                        "Reservation Rejected",
+                        `Your reservation for "${update.book_title}" was not approved. Please contact the library for more information.`
+                    );
+                }
+            });
+        }
+    } catch (error) {
+        console.error("Error checking reservation updates:", error);
+    }
+}
+
+function showReservationAlert(title, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'alert alert-info payment-alert';
+    alertDiv.style.position = 'fixed';
+    alertDiv.style.bottom = '20px';
+    alertDiv.style.right = '20px';
+    alertDiv.style.zIndex = '2000';
+    alertDiv.style.maxWidth = '300px';
+    alertDiv.innerHTML = `
+        <h5><i class="fas fa-info-circle me-2"></i>${title}</h5>
+        <p>${message}</p>
+        <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+    `;
+
+    document.body.appendChild(alertDiv);
+
+    // Auto-close after 15 seconds
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 15000);
 }
 
         // Borrow a book
@@ -2440,6 +2554,14 @@ setInterval(() => {
 }, 30000); // Check every 30 seconds
 
 
+document.addEventListener("DOMContentLoaded", function() {
+    // Existing event listeners...
+
+    // Set up polling for reservation updates (every 60 seconds)
+    setInterval(() => {
+        checkReservationStatusUpdates();
+    }, 60000);
+});
 
         // ====== INITIALIZATION ======
         document.addEventListener("DOMContentLoaded", function() {

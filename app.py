@@ -2,65 +2,13 @@ from flask import Flask, render_template, request
 import serial
 import time
 import os
-import serial
-import time
-import threading
+
 # Initialize Flask app and specify template folder
 app = Flask(__name__, template_folder=os.path.join('web_portal', 'templates'))
 
-ARDUINO_PORT = 'COM5'  # Using the specified COM5 port
+# Configuration
+COM_PORT = os.getenv('COM_PORT', 'COM5')  # Use environment variable or default to 'COM3'
 BAUD_RATE = 9600
-
-# Global variable to track Arduino connection status
-arduino = None
-
-
-def connect_to_arduino():
-    """Attempt to connect to the Arduino"""
-    global arduino
-    try:
-        arduino = serial.Serial(ARDUINO_PORT, BAUD_RATE, timeout=1)
-        print(f"Connected to Arduino on {ARDUINO_PORT}")
-        time.sleep(2)  # Give Arduino time to reset after connection
-        return True
-    except Exception as e:
-        print(f"Failed to connect to Arduino: {e}")
-        arduino = None
-        return False
-
-
-# Try to connect to Arduino when starting the server
-connect_to_arduino()
-
-
-@app.route('/signal_arduino', methods=['POST'])
-def signal_arduino():
-    """Send signal to Arduino to open the door"""
-    global arduino
-
-    # Get command from request
-    data = request.get_json()
-    command = data.get('command')
-
-    if command != 'open_door':
-        return jsonify({'success': False, 'message': 'Invalid command'})
-
-    # Check if Arduino is connected
-    if arduino is None:
-        # Try to reconnect
-        if not connect_to_arduino():
-            return jsonify({'success': False, 'message': 'Arduino not connected'})
-
-    try:
-        # Send the 'o' character to trigger door opening in Arduino
-        arduino.write(b'o')
-        print("Signal sent to Arduino to open door")
-        return jsonify({'success': True})
-    except Exception as e:
-        print(f"Error communicating with Arduino: {e}")
-        # Connection might be lost, set to None to try reconnecting next time
-        arduino = None
-        return jsonify({'success': False, 'message': 'Failed to communicate with return system'})
 
 @app.route('/')
 def index():

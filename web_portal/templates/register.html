@@ -10,115 +10,109 @@
     <title>Library Web Portal Registration</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet" />
     <style>
-    body {
-        font-family: "Roboto", sans-serif;
-        background-color: #f4f4f4;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        min-height: 100vh; /* Ensures body takes up full screen height but grows with content */
-        margin: 0;
-        padding: 20px; /* Added padding to avoid content touching the edges */
-    }
+        body {
+            font-family: "Roboto", sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
 
-    .register-container {
-        background-color: #fff;
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        width: 100%;
-        max-width: 400px; /* Adjust the max-width to suit various screen sizes */
-        text-align: center;
-        box-sizing: border-box; /* Ensures padding is included in the width calculation */
-        margin-top: 20px; /* Adds space above the form */
-    }
-
-    h2 {
-        margin-bottom: 20px;
-        font-size: 24px;
-        color: #333;
-        margin-top: 0; /* Remove margin top if not needed */
-    }
-
-    input[type="text"], input[type="password"], input[type="email"], select {
-        width: 100%;
-        padding: 10px;
-        margin: 10px 0;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-sizing: border-box;
-    }
-
-    button {
-        width: 100%;
-        padding: 10px;
-        background-color: #4CAF50;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-    }
-
-    button:hover {
-        background-color: #45a049;
-    }
-
-    /* Password strength meter */
-    #password-strength-container {
-        width: 100%;
-        height: 5px;
-        background-color: #e0e0e0;
-        margin: 10px 0;
-    }
-
-    #password-strength-meter {
-        height: 100%;
-        width: 0;
-        background-color: red;
-    }
-
-    /* Adding margin to separate checkbox and submit button */
-    #showPassword {
-        margin-bottom: 15px; /* Adds space between the checkbox and the register button */
-    }
-
-    /* Mobile and zoom responsive layout */
-    @media (max-width: 600px) {
         .register-container {
-            max-width: 90%; /* Makes sure it doesn’t stretch too wide on smaller screens */
-            padding: 15px;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+            box-sizing: border-box;
+            margin-top: 20px;
         }
 
         h2 {
-            font-size: 20px; /* Adjust title size on smaller screens */
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #333;
+            margin-top: 0;
         }
 
         input[type="text"], input[type="password"], input[type="email"], select {
-            font-size: 14px; /* Adjust input size for smaller screens */
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
         }
 
         button {
-            font-size: 14px; /* Adjust button size for smaller screens */
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
         }
-    }
-</style>
 
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #password-strength-container {
+            width: 100%;
+            height: 5px;
+            background-color: #e0e0e0;
+            margin: 10px 0;
+        }
+
+        #password-strength-meter {
+            height: 100%;
+            width: 0;
+            background-color: red;
+        }
+
+        #showPassword {
+            margin-bottom: 15px;
+        }
+
+        @media (max-width: 600px) {
+            .register-container {
+                max-width: 90%;
+                padding: 15px;
+            }
+
+            h2 {
+                font-size: 20px;
+            }
+
+            input[type="text"], input[type="password"], input[type="email"], select {
+                font-size: 14px;
+            }
+
+            button {
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="register-container">
         <h2>Register</h2>
-        <form id="registerForm" method="POST" action="http://127.0.0.1:5000/register">
+        <form id="registerForm" method="POST">
 
-            <!-- Role Selection First -->
             <select id="role" name="role" required>
                 <option value="" disabled selected>Select Role</option>
                 <option value="Student">Student</option>
                 <option value="Teacher">Teacher</option>
             </select><br>
 
-            <!-- Common Fields -->
-            <input type="text" id="username" name="username" placeholder="User Name" required /><br>
+            <input type="text" id="username" name="username" placeholder="User  Name" required /><br>
             <input type="text" id="contact_number" name="contact_number" placeholder="Contact Number" required /><br>
             <input type="email" id="email" name="email" placeholder="Email Address" required /><br>
             <select id="gender" name="gender" required>
@@ -128,17 +122,16 @@
                 <option value="Other">Other</option>
             </select><br>
 
-            <!-- Fields for Students -->
             <div id="studentFields" style="display: none;">
-                <select id="year_level" name="year_level">
+                <select id="year_level" name="year_level" required>
                     <option value="" disabled selected>Select Year Level</option>
                     <option value="1">1st Year</option>
                     <option value="2">2nd Year</option>
                     <option value="3">3rd Year</option>
-                    <option value="4">4th Year</option>
+                                        <option value="4">4th Year</option>
                     <option value="5">5th Year</option>
                 </select><br>
-                <select id="course" name="course">
+                <select id="course" name="course" required>
                     <option value="" disabled selected>Select Course</option>
                     <option value="BSMT">BSMT - Bachelor of Science in Marine Transportation</option>
                     <option value="BSMarE">BSMarE - Bachelor of Science in Marine Engineering</option>
@@ -160,9 +153,8 @@
                 </select><br>
             </div>
 
-            <!-- Fields for Teachers -->
             <div id="teacherFields" style="display: none;">
-                <select id="department" name="department">
+                <select id="department" name="department" required>
                     <option value="" disabled selected>Select Department</option>
                     <option value="Engineering">Engineering</option>
                     <option value="Information Technology">Information Technology</option>
@@ -175,28 +167,20 @@
                 </select><br>
             </div>
 
-            <!-- School ID -->
             <input type="text" id="school_id" name="school_id" placeholder="School ID Number" required /><br>
-
-            <!-- Password Field -->
             <input type="password" id="password" name="password" placeholder="Password" required oninput="checkPasswordStrength()" /><br>
-
-            <!-- Password Confirmation Field -->
             <input type="password" id="password_confirm" name="password_confirm" placeholder="Confirm Password" required oninput="checkPasswordMatch()" /><br>
 
-            <!-- Password Strength Meter -->
             <div id="password-strength-container">
                 <div id="password-strength-meter"></div>
             </div><br>
 
-            <!-- Password Match Feedback -->
             <p id="password-match-feedback" style="color: red; display: none;">Passwords do not match.</p><br>
-
-            <!-- Show Password Checkbox -->
             <input type="checkbox" id="showPassword"> Show Password<br>
-
-            <!-- Register Button -->
             <button type="submit">Register</button>
+
+
+         <button type="button" style="margin-top: 10px;" onclick="window.location.href='{{ url_for('home') }}'">Login</button>
         </form>
         <p>Note: Proceed to the Library Front desk to claim the Library Card.</p>
     </div>
@@ -222,7 +206,7 @@
                 department.removeAttribute('required');
             } else if (this.value === 'Teacher') {
                 studentFields.style.display = 'none';
-                teacherFields.style.display = 'block';
+                teacherFields.style.display =                 'block';
                 department.setAttribute('required', 'true');
                 yearLevel.removeAttribute('required');
                 course.removeAttribute('required');
@@ -284,6 +268,37 @@
                 strengthMeter.style.backgroundColor = 'green';
             }
         }
+
+        // Handle form submission
+        registerForm.addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent default form submission
+
+            const formData = new FormData(registerForm);
+            const jsonData = Object.fromEntries(formData); // Convert FormData to JSON
+
+            try {
+                const response = await fetch('/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jsonData) // Send JSON data
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(data.message); // Show success message
+                    // Optionally redirect or clear the form
+                    registerForm.reset();
+                } else {
+                    const errorData = await response.json();
+                    alert(errorData.message || 'An error occurred during registration.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while submitting the form.');
+            }
+        });
     </script>
 </body>
 </html>

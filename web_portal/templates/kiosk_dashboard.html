@@ -1070,8 +1070,109 @@
     min-width: 80px; /* Ensures consistent width */
 }
 
+/* Reservation Modal Styles */
+.reservation-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.reservation-modal .modal-content {
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    width: 90%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.reservation-item {
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border-left: 4px solid #6c757d;
+}
+
+.reservation-item.approved {
+    border-left-color: #28a745;
+    background: #e8f9f0;
+}
+
+.reservation-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.reservation-actions {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed #ddd;
+}
+
+.pickup-instruction {
+    font-size: 13px;
+    color: #6c757d;
+    margin-top: 8px;
+}
+
+.bg-success { background-color: #28a745; }
+.bg-warning { background-color: #ffc107; color: #212529; }
+.bg-danger { background-color: #dc3545; }
 
 
+            .reservation-item {
+    padding: 15px;
+    margin-bottom: 15px;
+    border-radius: 8px;
+    background: #f8f9fa;
+    border-left: 4px solid #6c757d;
+    transition: background 0.3s ease;
+}
+
+
+
+.reservation-modal .modal-content button {
+    margin-top: 10px;
+    align-self: center;
+}
+
+.reservation-item:hover {
+    background: #e9ecef; /* Lighten background on hover */
+}
+
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.pickup-instruction {
+    font-size: 13px;
+    color: #6c757d;
+    margin-top: 8px;
+}
         </style>
     </head>
     <body>
@@ -1080,6 +1181,7 @@
             <div onclick="viewBooks()">View Books</div>
             <div onclick="borrowBook()">Borrow Book</div>
             <div onclick="returnBook()">Return Book</div>
+             <div onclick="viewReservations()">Book Reservations</div>
             <div onclick="viewBorrowingHistory()">Borrowing History</div>
             <div onclick="goToBorrowingRules()">Library Borrowing Rules</div>
         </div>
@@ -1251,7 +1353,378 @@
 </div>
 
 
+        <div id="reservedBookScanModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <h3>Please Scan the Reserved Book's Barcode</h3>
+        <p>Scan the barcode of the reserved book you wish to pickup.</p>
+        <input type="text" id="reservedBookBarcodeInput" placeholder="Scan barcode here..." autofocus onkeydown="handleReservedBookScan(event)">
+        <div class="button-container">
+            <button onclick="closeReservedBookScanModal()" class="cancel">Cancel</button>
+        </div>
+    </div>
+</div>
+
         <script>
+
+           // Add these new functions for handling reserved book pickup
+function openReservedBookScanModal(bookId, reservationId) {
+    document.getElementById("reservedBookScanModal").style.display = "block";
+    document.getElementById("reservedBookBarcodeInput").value = "";
+    document.getElementById("reservedBookBarcodeInput").focus();
+
+    // Store the book and reservation IDs in the input element
+    let input = document.getElementById("reservedBookBarcodeInput");
+    input.dataset.bookId = bookId;
+    input.dataset.reservationId = reservationId;
+}
+
+function closeReservedBookScanModal() {
+    document.getElementById("reservedBookScanModal").style.display = "none";
+}
+
+function handleReservedBookScan(event) {
+    if (event.key === 'Enter') {
+        const scannedBarcode = event.target.value.trim();
+        const bookId = event.target.dataset.bookId;
+        const reservationId = event.target.dataset.reservationId;
+
+        closeReservedBookScanModal();
+        processReservedBookPickup(bookId, reservationId, scannedBarcode);
+    }
+}
+
+async function processReservedBookPickup(bookId, reservationId, scannedBarcode) {
+    try {
+        // First verify the barcode matches the book
+        const response = await fetch(`/verify_reserved_book?book_id=${bookId}&barcode=${scannedBarcode}`);
+        if (!response.ok) {
+            const errorData = await response.json();
+            showAlert(errorData.message || "Book verification failed", 'error');
+            return;
+        }
+
+        const verification = await response.json();
+        if (!verification.valid) {
+            showAlert("Scanned barcode doesn't match the reserved book. Please try again.", 'error');
+            return;
+        }
+
+        // Proceed with borrowing the reserved book
+        await borrowReservedBook(bookId, reservationId, scannedBarcode);
+
+    } catch (error) {
+        console.error("Error processing reserved book pickup:", error);
+        showAlert("An error occurred while processing the book. Please try again.", 'error');
+    }
+}
+
+// Modified borrowReservedBook function to include barcode verification
+async function borrowReservedBook(bookId, reservationId, barcode) {
+    try {
+        // Show loading state
+        const modal = document.querySelector('.reservation-modal');
+        if (modal) {
+            modal.innerHTML = `
+                <div class="modal-content text-center">
+                    <div class="spinner-border text-primary" style="width: 3rem; height: 3rem;" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Processing your book pickup...</p>
+                </div>
+            `;
+        }
+
+        // First check for unpaid penalties
+        const penaltyCheck = await fetch("/check_unpaid_penalties");
+        if (!penaltyCheck.ok) throw new Error("Failed to check penalties");
+        const penaltyData = await penaltyCheck.json();
+
+        if (penaltyData.has_unpaid_penalties) {
+            showErrorPopup(`Borrowing suspended!<br>Unpaid penalties: ₱${penaltyData.total_unpaid.toFixed(2)}`);
+            viewReservations(); // Reload reservations view
+            return;
+        }
+
+        // Check borrowing limits
+        const userResponse = await fetch("/get_kiosk_user_profile");
+        if (!userResponse.ok) throw new Error("Failed to fetch user");
+        const user = await userResponse.json();
+
+        const borrowCountResponse = await fetch(`/get_current_borrow_count?user_id=${user.id}`);
+        if (!borrowCountResponse.ok) throw new Error("Failed to fetch count");
+        const borrowCount = await borrowCountResponse.json();
+
+        const maxAllowed = user.role === 'Student' ? 3 :
+                          user.role === 'Teacher' ? 5 : 3;
+
+        if (borrowCount.count >= maxAllowed) {
+            showBorrowLimitError(maxAllowed);
+            viewReservations(); // Reload reservations view
+            return;
+        }
+
+        // Process the reservation borrowing with barcode verification
+        const response = await fetch("/borrow_reserved_book", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                book_id: bookId,
+                reservation_id: reservationId,
+                barcode: barcode
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // Show success message
+            showAlert('Reserved book borrowed successfully!', 'success');
+
+            // Print receipt
+            printReceiptSilently(data.receipt_data);
+
+            // Close modal if it exists
+            document.querySelector('.reservation-modal')?.remove();
+
+            // Refresh books list
+            loadLibraryBooks();
+        } else {
+            throw new Error(data.message || "Borrowing failed");
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        showAlert("Error borrowing reserved book: " + error.message, 'error');
+        viewReservations(); // Reload reservations view
+    }
+}
+
+// Update the viewReservations function to use the new pickup process
+async function viewReservations() {
+    try {
+        // Get user profile to get school_id
+        const userResponse = await fetch("/get_kiosk_user_profile");
+        if (!userResponse.ok) throw new Error("Failed to fetch user");
+        const user = await userResponse.json();
+
+        // Fetch reservations for this user
+        const response = await fetch(`/get_user_reservations?school_id=${user.school_id}`);
+        if (!response.ok) throw new Error("Failed to load reservations");
+        const reservations = await response.json();
+
+        if (reservations.length === 0) {
+            showAlert('You have no book reservations.', 'info');
+            return;
+        }
+
+        // Create and show modal
+        const modal = document.createElement('div');
+        modal.className = 'reservation-modal';
+        modal.innerHTML = `
+            <div class="modal-content">
+                <h3><i class="fas fa-bookmark"></i> Your Book Reservations</h3>
+                <div class="reservations-list">
+    ${reservations.map(res => `
+        <div class="reservation-item ${res.status.toLowerCase()}">
+            <div class="reservation-header">
+                <h4>${res.title}</h4>
+                <span class="status-badge ${getReservationStatusClass(res.status)}">
+                    ${res.status}
+                </span>
+            </div>
+            <p><i class="fas fa-user-pen"></i> ${res.author || 'Unknown Author'}</p>
+            <p><i class="fas fa-calendar-day"></i> Requested: ${formatDateTime(res.reservation_date)}</p>
+
+            ${res.status.toUpperCase() === 'APPROVED' ? `
+                <div class="reservation-actions">
+                    <p class="pickup-instruction">Please scan the book's barcode to confirm pickup</p>
+                </div>
+            ` : ''}
+        </div>
+    `).join('')}
+</div>
+                <button class="btn btn-secondary mt-3" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i> Close
+                </button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (error) {
+        console.error("Error loading reservations:", error);
+        showAlert('Failed to load reservations: ' + error.message, 'error');
+    }
+}
+
+function showErrorPopup(message) {
+    const errorBox = document.createElement('div');
+    errorBox.className = 'error-popup';
+    errorBox.innerHTML = `
+        <h3>⚠️ Borrowing Restricted</h3>
+        <p>${message}</p>
+        <p>Please pay your penalties at the library counter.</p>
+        <button onclick="this.parentElement.remove()">OK</button>
+    `;
+    document.body.appendChild(errorBox);
+}
+
+function showBorrowLimitError(maxAllowed) {
+    const errorBox = document.createElement('div');
+    errorBox.className = 'error-popup';
+    errorBox.innerHTML = `
+        <h3>📚 Borrowing Limit Reached</h3>
+        <p>You can only borrow <strong>${maxAllowed} books</strong> at a time.</p>
+        <p>Please return some books first.</p>
+        <button onclick="this.parentElement.remove()">OK</button>
+    `;
+    document.body.appendChild(errorBox);
+}
+
+// Function to print the receipt silently
+function printReceiptSilently(receiptData) {
+    console.log('1. Starting print process');
+
+    // Create a new window for printing
+    const printWindow = window.open('', '', 'width=48,height=300');
+    console.log('2. Created print window:', printWindow);
+
+    // Format the dates from receipt data
+    const borrowDate = new Date(receiptData.date_borrowed);
+    const dueDate = new Date(receiptData.due_date);
+
+    const borrowDateFormatted = formatLocalDateTime(borrowDate);
+    const dueDateFormatted = formatLocalDateTime(dueDate);
+
+    // Write the receipt content to the new window
+    printWindow.document.write(`
+        <html>
+            <head>
+                <title>Reservation Pickup Receipt</title>
+                <meta charset="UTF-8">
+                <style>
+                    @page {
+                        size: 48mm auto;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    body {
+                        font-family: "Courier New", Courier, monospace;
+                        margin: 0;
+                        padding: 0;
+                        width: 48mm;
+                        text-align: left;
+                    }
+                    .center {
+                        text-align: center;
+                    }
+                    h3 {
+                        font-size: 14px;
+                        margin: 4px 0;
+                    }
+                    h4 {
+                        font-size: 12px;
+                        margin: 4px 0;
+                    }
+                    p {
+                        font-size: 10px;
+                        margin: 2px 0;
+                    }
+                    .divider {
+                        border-top: 1px dashed #000;
+                        margin: 5px 0;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="center">
+                    <h3>LIBRARY SYSTEM</h3>
+                    <h4>RESERVATION PICKUP</h4>
+                    <div class="divider"></div>
+                </div>
+
+                <p><strong>Borrower:</strong> ${receiptData.borrower_name}</p>
+                <p><strong>ID Number:</strong> ${receiptData.school_id}</p>
+                <p><strong>Role:</strong> ${receiptData.role}</p>
+
+                <div class="divider"></div>
+
+                <p><strong>Book:</strong> ${receiptData.book_details.title}</p>
+                <p><strong>Author:</strong> ${receiptData.book_details.author}</p>
+                <p><strong>Barcode:</strong> ${receiptData.book_details.barcode}</p>
+                <p><strong>Category:</strong> ${receiptData.book_details.lcc_classification}</p>
+
+                <div class="divider"></div>
+
+                <p><strong>Date Borrowed:</strong> ${borrowDateFormatted}</p>
+                <p><strong>Due Date:</strong> ${dueDateFormatted}</p>
+
+                <div class="divider"></div>
+
+                <div class="center">
+                    <p>Thank you for using the Library System!</p>
+                    <p>Please return book on or before due date.</p>
+                    <p>Late return will incur penalties.</p>
+                </div>
+            </body>
+        </html>
+    `);
+    console.log('3. Wrote document content');
+
+    printWindow.document.close();
+    console.log('4. Closed document');
+
+    // Print immediately
+    printWindow.print();
+    console.log('5. Called print()');
+
+    // Close the window after printing
+    setTimeout(() => {
+        printWindow.close();
+        console.log('6. Closed print window');
+    }, 1000);
+}
+
+// Helper function to format date/time
+function formatLocalDateTime(date) {
+    const options = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    };
+    return date.toLocaleString('en-US', options);
+}
+
+function getReservationStatusClass(status) {
+    switch(status.toLowerCase()) {
+        case 'approved': return 'bg-success';
+        case 'pending': return 'bg-warning';
+        case 'rejected': return 'bg-danger';
+        case 'completed': return 'bg-primary';
+        default: return 'bg-secondary';
+    }
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return "-";
+    try {
+        const date = new Date(dateString);
+        return date.toLocaleString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (e) {
+        console.warn("Date formatting error:", e);
+        return dateString;
+    }
+}
+
 
            async function loadLibraryBooks() {
     console.log("Loading library books...");
@@ -1278,7 +1751,7 @@
                     <div class="card-body">
                         <h5 class="book-title">${book.title}</h5>
                         <div class="book-meta">
-                            <div class="meta-item">
+                            <div class="meta-item">f
                                 <i class="fas fa-user-pen"></i>
                                 <span>${book.author}</span>
                             </div>
@@ -2494,7 +2967,78 @@ async function fetchUserProfile() {
                     document.getElementById("autocompleteBox").style.display = "none";
                 }
             });
+async function borrowReservedBook(bookId, barcode) {
+    try {
+        const response = await fetch('/borrow_reserved_book', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ book_id: bookId, barcode: barcode })
+        });
 
+        const result = await response.json();
+
+        if (response.ok) {
+            // Show success message and print receipt
+            showBorrowSuccess(result.due_date);
+            printReceipt(bookId);
+
+            // Refresh the kiosk interface
+            loadReservedBooksForPickup();
+        } else {
+            if (result.expired) {
+                // Offer to make new reservation
+                if (confirm(result.message + " Would you like to make a new reservation?")) {
+                    reserveBook(bookId);
+                }
+            } else {
+                alert(result.message);
+            }
+        }
+    } catch (error) {
+        console.error("Error:", error);
+        alert("An error occurred while processing your request");
+    }
+}
+
+function showReservedBooksForPickup() {
+    // Fetch and display user's approved reservations
+    fetch('/get_approved_reservations')
+        .then(response => response.json())
+        .then(reservations => {
+            const container = document.getElementById('reservedBooksContainer');
+            container.innerHTML = '';
+
+            if (reservations.length === 0) {
+                container.innerHTML = '<p>No reserved books ready for pickup</p>';
+                return;
+            }
+
+            reservations.forEach(reservation => {
+                const bookCard = document.createElement('div');
+                bookCard.className = 'reserved-book-card';
+                bookCard.innerHTML = `
+                    <h4>${reservation.title}</h4>
+                    <p>Author: ${reservation.author}</p>
+                    <p>Approved: ${formatDate(reservation.approval_date)}</p>
+                    <p>Pickup by: ${formatDate(reservation.pickup_deadline)}</p>
+                    <div class="barcode-scan">
+                        <p>Scan book barcode to borrow:</p>
+                        <input type="text" id="barcode-${reservation.book_id}"
+                               placeholder="Scan barcode"
+                               onkeypress="handleReservedBookScan(event, ${reservation.book_id})">
+                    </div>
+                `;
+                container.appendChild(bookCard);
+            });
+        });
+}
+
+function handleReservedBookScan(event, bookId) {
+    if (event.key === 'Enter') {
+        const barcode = event.target.value.trim();
+        borrowReservedBook(bookId, barcode);
+    }
+}
 
 
         </script>
