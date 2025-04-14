@@ -6,7 +6,6 @@ import os
 import json
 import serial
 import time
-import requests
 
 app = Flask(__name__, template_folder=os.path.join("web_portal", "templates"))
 app.secret_key = "your-strong-secret-key"
@@ -67,15 +66,32 @@ connect_to_arduino()
 
 @app.route('/signal_arduino', methods=['POST'])
 def signal_arduino():
+    """Send signal to Arduino to open the door"""
+    global arduino
+
+    # Get command from request
+    data = request.get_json()
+    command = data.get('command')
+
+    if command != 'open_door':
+        return jsonify({'success': False, 'message': 'Invalid command'})
+
+    # Check if Arduino is connected
+    if arduino is None:
+        # Try to reconnect
+        if not connect_to_arduino():
+            return jsonify({'success': False, 'message': 'Arduino not connected'})
+
     try:
-        # Replace with your kiosk PC's local IP
-        response = requests.post(
-            "http://192.168.185.15:5001/signal_arduino",  # 👈 This should match what you saw from Step 2 & 3
-            json={"command": "open_door"}
-        )
-        return jsonify(response.json())
+        # Send the 'o' character to trigger door opening in Arduino
+        arduino.write(b'o')
+        print("Signal sent to Arduino to open door")
+        return jsonify({'success': True})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
+        print(f"Error communicating with Arduino: {e}")
+        # Connection might be lost, set to None to try reconnecting next time
+        arduino = None
+        return jsonify({'success': False, 'message': 'Failed to communicate with return system'})
 
 
 # Optional: Add diagnostic endpoint to list available COM ports
