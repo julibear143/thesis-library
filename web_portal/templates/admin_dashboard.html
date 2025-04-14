@@ -701,7 +701,7 @@
     // Updated book card generation in loadBooksByClassification function
     async function loadBooksByClassification(classification) {
         try {
-            const response = await fetch(`http://127.0.0.1:5000/books/${encodeURIComponent(classification)}`);
+            const response = await fetch(`/books/${encodeURIComponent(classification)}`);
             if (!response.ok) throw new Error("Error loading books");
 
             const books = await response.json();
