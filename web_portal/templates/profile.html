@@ -207,7 +207,7 @@
             }
 
             try {
-                let response = await fetch(`http://127.0.0.1:5000/get_user_profile?id=${userId}`);
+                let response = await fetch(`/get_user_profile?id=${userId}`);
                 let userProfile = await response.json();
 
                 if (!response.ok) {
