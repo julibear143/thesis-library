@@ -88,32 +88,34 @@
 
     <script>
         const loginForm = document.getElementById('loginForm');
-        const errorMessage = document.getElementById('error-message');
+    const errorMessage = document.getElementById('error-message');
 
-       loginForm.addEventListener('submit', async function(event) {
-    event.preventDefault();
-    const school_id = document.getElementById('school_id').value;
-    const password = document.getElementById('password').value;
+    loginForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const school_id = document.getElementById('school_id').value;
+        const password = document.getElementById('password').value;
 
-    let response = await fetch("http://127.0.0.1:5000/login_manual", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ school_id, password })
+        let response = await fetch("/login_manual", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ school_id, password })
+        });
+
+        let data = await response.json();
+
+        if (response.ok) {
+            sessionStorage.setItem('schoolId', school_id);
+            window.location.href = data.redirect;
+        } else {
+            errorMessage.style.display = 'block';
+        }
     });
 
-    let data = await response.json();
-
-    if (response.ok) {
-        // Store the school_id in session storage
-        sessionStorage.setItem('schoolId', school_id);
-        window.location.href = data.redirect;  // Redirect based on the response
-    } else {
-        errorMessage.style.display = 'block'; // Show error message
-    }
-});
-
+    document.getElementById('registerButton').addEventListener('click', function() {
+        window.location.href = "/register";
+    });
         document.getElementById('registerButton').addEventListener('click', function() {
             window.location.href = "/register"; // Redirect to the registration page
         });
