@@ -14,11 +14,13 @@ app.secret_key = "your-strong-secret-key"
 
 
 DB_CONFIG = {
-    "host": "localhost",
+    "host": "trolley.proxy.rlwy.net",
     "user": "root",
-    "password": "$Hevery143",
-    "database": "julibeardb"
+    "password": "yhIopXkAoldCaBwDsWmyHXfKNpXrVIiH",
+    "database": "railway",
+    "port": 15988
 }
+
 
 def get_db():
     if "db" not in g:
@@ -2190,4 +2192,4 @@ def logout():
     return jsonify({"message": "Logged out successfully."}), 200
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(debug=False, host="0.0.0.0", port=10000)
