@@ -884,7 +884,7 @@ contentArea.innerHTML = `
             userContentArea.innerHTML = `<h4>${userType.charAt(0).toUpperCase() + userType.slice(1)}s</h4>`;
 
             // Fetch users from the server
-            let response = await fetch(`http://127.0.0.1:5000/get_users?type=${userType}`);
+            let response = await fetch(`/get_users?type=${userType}`);
             let users = await response.json();
 
             if (users.length === 0) {
@@ -918,7 +918,7 @@ contentArea.innerHTML = `
 
         function viewProfile(userId) {
             // Redirect to the profile page
-            window.location.href = `http://127.0.0.1:5000/profile?id=${userId}`;
+            window.location.href = `/profile?id=${userId}`;
         }
 
         async function loadUnassignedUsers() {
@@ -926,7 +926,7 @@ contentArea.innerHTML = `
             userContentArea.innerHTML = `<h4>Users Without Library Cards</h4>`;
 
             // Fetch unassigned users from the server
-            let response = await fetch("http://127.0.0.1:5000/get_unassigned_users");
+            let response = await fetch("/get_unassigned_users");
             let users = await response.json();
 
             if (users.length === 0) {
@@ -961,7 +961,7 @@ contentArea.innerHTML = `
 
         async function removeUser(userId) {
         // Send a request to remove the user
-        let response = await fetch("http://127.0.0.1:5000/remove_user", {
+        let response = await fetch("/remove_user", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -983,7 +983,7 @@ contentArea.innerHTML = `
             if (!cardNumber) return; // Exit if no card number is provided
 
             // Logic to assign a library card
-            let response = await fetch("http://127.0.0.1:5000/assign_library_card", {
+            let response = await fetch("/assign_library_card", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -1024,7 +1024,7 @@ contentArea.innerHTML = `
             formData.append('image', document.getElementById('image').files[0]); // Append the image file
 
             // Send the data to the server to add the book
-            let response = await fetch("http://127.0.0.1:5000/add_book", {
+            let response = await fetch("/add_book", {
                 method: "POST",
                 body: formData // Use FormData directly
             });
