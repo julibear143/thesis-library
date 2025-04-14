@@ -1043,7 +1043,7 @@
             </div>
         `;
 
-        const response = await fetch(`http://127.0.0.1:5000/get_available_books`);
+        const response = await fetch(`get_available_books`);
         if (!response.ok) throw new Error("Error loading books");
         const books = await response.json();
 
@@ -1120,7 +1120,7 @@
             </div>
         `;
 
-        const response = await fetch(`http://127.0.0.1:5000/user/book/${bookId}`);
+        const response = await fetch(`/user/book/${bookId}`);
         if (!response.ok) throw new Error("Error loading book details");
         const book = await response.json();
 
@@ -1241,7 +1241,7 @@
         return;
     }
     try {
-        let response = await fetch(`http://127.0.0.1:5000/get_users_user_profile?school_id=${schoolId}`);
+        let response = await fetch(`/get_users_user_profile?school_id=${schoolId}`);
         if (!response.ok) {
             throw new Error("Error loading profile");
         }
@@ -1349,7 +1349,7 @@
             </div>
         `;
 
-        let response = await fetch(`http://127.0.0.1:5000/get_borrowed_books?school_id=${schoolId}`);
+        let response = await fetch(`/get_borrowed_books?school_id=${schoolId}`);
         if (!response.ok) {
             throw new Error("Failed to load borrowed books");
         }
@@ -2208,7 +2208,7 @@ async function fetchBookSuggestions() {
     }
 
     try {
-        let response = await fetch(`http://127.0.0.1:5000/search_books?query=${encodeURIComponent(input)}`);
+        let response = await fetch(`/search_books?query=${encodeURIComponent(input)}`);
         if (!response.ok) {
             throw new Error("Error fetching suggestions");
         }
